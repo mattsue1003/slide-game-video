@@ -26,7 +26,7 @@ function defaults() {
     stickers: [],
   };
 }
-// 原題庫：AI 生成的插畫（bank/ 資料夾，ChatGPT＋Canva），每張圖一題
+// 原題庫：Gemini 生成的插畫（bank/ 資料夾），每張圖一題
 function sampleMatch() {
   return [['apple', '蘋果', true], ['banana', '小黃瓜', false], ['puppy', '小狗', true], ['car', '公車', false],
     ['umbrella', '雨傘', true], ['cat', '老虎', false], ['sunflower', '向日葵', true], ['bicycle', '摩托車', false],

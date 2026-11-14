@@ -23,7 +23,7 @@
 - **下載教案／上傳教案**：存成 `.教案.json`，裡面包含圖片、Logo 和自訂音樂，可以分享給其他老師
 
 ## 檔案
-- `bank/`：原題庫插畫 16 張（ChatGPT 與 Canva AI 生成）
+- `bank/`：原題庫插畫 16 張（Gemini 生成）
 - `render.js`：畫面渲染（預覽、播放、匯出共用）
 - `audio.js`：背景音樂合成、音效包、離線混音
 - `export.js`：WebCodecs 逐格編碼，用 mp4-muxer 封裝
