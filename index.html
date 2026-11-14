@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>簡報遊戲影片工坊</title>
+<meta name="description" content="老師自己做互動簡報遊戲（圖文配對、相反動作），加上背景音樂與音效，一鍵轉成 MP4 影片上傳 YouTube 帶學員操作。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg></span>
+    <div><b>簡報遊戲影片工坊</b><small>做互動簡報遊戲 → 一鍵轉成 YouTube 影片</small></div>
+  </div>
+  <div class="actions">
+    <button id="btnNew" class="ghost">新教案</button>
+    <button id="btnOpen" class="ghost">開啟教案</button>
+    <button id="btnSave" class="ghost">儲存教案</button>
+    <button id="btnPresent">全螢幕帶操作</button>
+    <button id="btnExport" class="primary">匯出影片 MP4</button>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="panel">
+    <div class="types" role="radiogroup" aria-label="遊戲類型">
+      <button class="type-card" data-type="match" role="radio">
+        <span class="ti"><svg viewBox="0 0 40 40"><circle cx="13" cy="20" r="8" fill="none" stroke="currentColor" stroke-width="3.5"/><path d="M24 13l12 14M36 13L24 27" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg></span>
+        <b>文字圖片配對</b><small>符合比圈、不符合比叉</small>
+      </button>
+      <button class="type-card" data-type="opposite" role="radio">
+        <span class="ti"><svg viewBox="0 0 40 40"><path d="M6 14h22m-6-6 6 6-6 6M34 26H12m6-6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <b>相反詞／相反動作</b><small>看到指令，做相反的</small>
+      </button>
+    </div>
+
+    <nav class="tabs" role="tablist">
+      <button data-tab="content" class="on" role="tab">題目</button>
+      <button data-tab="rules" role="tab">規則與時間</button>
+      <button data-tab="audio" role="tab">音樂音效</button>
+      <button data-tab="look" role="tab">外觀與文字</button>
+    </nav>
+
+    <!-- 題目 -->
+    <section class="tab" id="tab-content">
+      <div class="field"><label for="fTitle">遊戲標題</label><input id="fTitle" maxlength="40"></div>
+      <div class="field"><label for="fSubtitle">副標題</label><input id="fSubtitle" maxlength="60"></div>
+
+      <div class="only-match">
+        <div class="list-head"><h3>題目 <span id="matchCount" class="count"></span></h3>
+          <div><button id="btnBatchImg" class="sm">批次上傳圖片</button><button id="btnAddMatch" class="sm primary">＋ 新增題目</button></div>
+        </div>
+        <p class="hint">每題放一張圖和一段文字，再選「符合／不符合」。可以把多張圖片直接拖進來，檔名會變成文字。</p>
+        <div id="matchList" class="items droppable"></div>
+      </div>
+
+      <div class="only-opposite">
+        <div class="list-head"><h3>題目 <span id="oppCount" class="count"></span></h3>
+          <div>
+            <select id="oppPreset" class="sm" aria-label="從範例加入"><option value="">從範例加入…</option></select>
+            <button id="btnAddOpp" class="sm primary">＋ 新增題目</button>
+          </div>
+        </div>
+        <p class="hint">「相反」欄留白時，會自動把「左右、上下、高低、前後」對調。</p>
+        <div id="oppList" class="items"></div>
+      </div>
+    </section>
+
+    <!-- 規則與時間 -->
+    <section class="tab" id="tab-rules" hidden>
+      <div class="only-match">
+        <h3>要做的動作</h3>
+        <div class="field"><label for="fYes">圖文符合時</label><input id="fYes" maxlength="20"></div>
+        <div class="field"><label for="fNo">圖文不符合時</label><input id="fNo" maxlength="20"></div>
+      </div>
+      <div class="only-opposite">
+        <h3>規則說明</h3>
+        <div class="field"><label for="fRule">開場顯示的規則</label><input id="fRule" maxlength="40"></div>
+      </div>
+      <h3>每段時間（秒）</h3>
+      <div class="slider"><label for="tIntro">開場規則</label><input type="range" id="tIntro" min="3" max="20" step="1"><output></output></div>
+      <div class="slider"><label for="tThink">思考時間（倒數）</label><input type="range" id="tThink" min="2" max="20" step="1"><output></output></div>
+      <div class="slider"><label for="tAnswer">揭曉＋做動作</label><input type="range" id="tAnswer" min="2" max="20" step="1"><output></output></div>
+      <div class="slider"><label for="tOutro">結尾</label><input type="range" id="tOutro" min="3" max="15" step="1"><output></output></div>
+      <h3>題目順序</h3>
+      <div class="seg-ctl" id="orderCtl"><button data-v="seq">依照清單</button><button data-v="random">隨機打亂</button></div>
+      <button id="btnShuffle" class="sm ghost" hidden>重新洗牌</button>
+      <div class="field"><label for="fEnding">結尾的話</label><input id="fEnding" maxlength="40"></div>
+    </section>
+
+    <!-- 音樂音效 -->
+    <section class="tab" id="tab-audio" hidden>
+      <h3>背景音樂</h3>
+      <p class="hint">內建音樂由程式即時合成，沒有版權問題，可以放心上傳 YouTube。</p>
+      <div id="musicList" class="choice-list"></div>
+      <input type="file" id="fileMusic" accept="audio/*" hidden>
+      <div class="slider"><label for="musicVol">音樂音量</label><input type="range" id="musicVol" min="0" max="100" step="5"><output></output></div>
+      <label class="check"><input type="checkbox" id="duck"> 揭曉答案時，音樂自動變小聲</label>
+
+      <h3>音效風格</h3>
+      <div id="packList" class="choice-list"></div>
+      <div class="slider"><label for="sfxVol">音效音量</label><input type="range" id="sfxVol" min="0" max="100" step="5"><output></output></div>
+      <h3>要哪些音效</h3>
+      <div id="evList" class="ev-list"></div>
+    </section>
+
+    <!-- 外觀與文字 -->
+    <section class="tab" id="tab-look" hidden>
+      <h3>主題模板</h3>
+      <div id="themeGrid" class="theme-grid"></div>
+      <div class="row2">
+        <div class="field"><label for="fFont">字體</label>
+          <select id="fFont"><option value="auto">跟著主題</option><option value="hei">黑體（清楚）</option><option value="kai">楷書手寫</option></select></div>
+        <div class="field"><label for="fColor">主色</label>
+          <div class="color-row"><input type="color" id="fColor"><button id="btnColorReset" class="sm ghost">用主題色</button></div></div>
+      </div>
+
+      <h3>作者資訊</h3>
+      <div class="field"><label for="fDesigner">設計者</label><input id="fDesigner" maxlength="30" placeholder="例如：王小明 職能治療師"></div>
+      <div class="field"><label for="fOrg">單位／頻道名稱</label><input id="fOrg" maxlength="40" placeholder="例如：○○長照據點"></div>
+      <label class="check"><input type="checkbox" id="fWatermark"> 遊戲過程右下角也顯示（防盜用）</label>
+      <p class="hint">會顯示在開場左下角和結尾畫面。</p>
+
+      <details class="labels">
+        <summary>畫面上的固定文字（可改）</summary>
+        <div id="labelFields"></div>
+        <button id="btnLabelReset" class="sm ghost">全部還原預設</button>
+      </details>
+    </section>
+  </aside>
+
+  <section class="stage">
+    <div class="screen" id="screen">
+      <canvas id="cv" width="1920" height="1080" aria-label="遊戲畫面預覽"></canvas>
+      <div class="fs-hint">空白鍵：暫停／播放　← →：上一段／下一段　Esc：離開</div>
+    </div>
+    <div class="transport">
+      <button id="btnPrev" class="icon" aria-label="上一段" title="上一段"><svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="2" height="10" rx=".8"/><path d="M13.5 3v10L5.5 8z"/></svg></button>
+      <button id="btnPlay" class="icon play" aria-label="播放" title="播放（空白鍵）"><svg viewBox="0 0 16 16"><path d="M4 2.5v11l9.5-5.5z"/></svg></button>
+      <button id="btnNext" class="icon" aria-label="下一段" title="下一段"><svg viewBox="0 0 16 16"><rect x="11.5" y="3" width="2" height="10" rx=".8"/><path d="M2.5 3v10l8-5z"/></svg></button>
+      <span id="time" class="time">0:00 / 0:00</span>
+      <label class="mute"><input type="checkbox" id="previewSound" checked> 預覽聲音</label>
+    </div>
+    <div class="strip" id="strip" role="slider" aria-label="時間軸" tabindex="0"><div class="segs" id="segs"></div><div class="head" id="playhead"></div></div>
+    <div class="legend"><span><i class="lg-intro"></i>開場</span><span><i class="lg-q"></i>題目倒數</span><span><i class="lg-a"></i>揭曉＋動作</span><span><i class="lg-outro"></i>結尾</span><span id="summary" class="summary"></span></div>
+  </section>
+</main>
+
+<dialog id="dlgExport">
+  <h2>匯出影片</h2>
+  <p id="expMeta" class="meta"></p>
+  <div class="seg-ctl" id="resCtl"><button data-v="1080" class="on">1080p（建議）</button><button data-v="720">720p（較快）</button></div>
+  <div class="prog"><div id="expBar"></div></div>
+  <p id="expStatus" class="status">MP4 格式，可直接上傳 YouTube。匯出時請不要關閉這個分頁。</p>
+  <div class="btns">
+    <button id="expClose" class="ghost">關閉</button>
+    <button id="expGo" class="primary">開始匯出</button>
+    <a id="expDl" class="btn primary" hidden>下載影片</a>
+  </div>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileOpen" accept=".json,application/json" hidden>
+<input type="file" id="fileImgs" accept="image/*" multiple hidden>
+
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script src="render.js"></script>
+<script src="audio.js"></script>
+<script src="export.js"></script>
+<script src="app.js"></script>
+<script>
+addEventListener('load',()=>{
+  const tryShrink=(n=0)=>{
+    const host=document.querySelector('[data-oth-report]');
+    if(!host||!host.shadowRoot){if(n<20)setTimeout(()=>tryShrink(n+1),300);return}
+    const s=document.createElement('style');
+    s.textContent='.fab{left:14px!important;right:auto!important;bottom:14px!important}.fab{width:34px!important;height:34px!important;min-width:0!important;padding:0!important;border-radius:50%!important;overflow:hidden!important;font-size:0!important;white-space:nowrap!important;transition:width .25s!important;opacity:.75}.fab:hover{width:auto!important;padding:0 14px!important;font-size:13px!important;border-radius:99px!important;opacity:1}';
+    host.shadowRoot.appendChild(s);
+  };tryShrink();
+});
+</script>
+<script src="https://mattsue1003.github.io/oth-report-button/report.js" data-site="簡報遊戲影片工坊" defer></script>
+</body>
+</html>
