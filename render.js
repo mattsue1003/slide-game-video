@@ -178,7 +178,7 @@ function drawFit(ctx, f, x, cy, color, align = 'center') {
 }
 function drawFitT(ctx, f, x, cy, color, T) {
   if (T.tshadow) drawFit(ctx, f, x + f.s * 0.07, cy + f.s * 0.07, T.ink);
-  else if (T.style === 'neon') { ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 40; drawFit(ctx, f, x, cy, color); ctx.restore(); }
+  else if (T.style === 'neon') { ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 40; drawFit(ctx, f, x, cy, color); ctx.restore(); drawFit(ctx, f, x, cy, '#FFFFFF'); return; }
   drawFit(ctx, f, x, cy, color);
 }
 function text(ctx, s, x, y, font, color, align = 'center') {
@@ -332,7 +332,12 @@ function drawBg(ctx, T, t) {
   else if (T.deco === 'memphis') {
     const pal = T.pal;
     for (let i = 0; i < 26; i++) {
-      const x = r() * W, y = r() * H, k = i % 5, c = pal[i % pal.length], s = 40 + r() * 70, ph = r() * 6.28, rot = ph + Math.sin(t * .4 + ph) * .25;
+      // 圖形只放在畫面四周，不壓到中間的文字和卡片
+      const ok = (x, y) => x < 140 || x > W - 140 || (y < 105 && x > 420 && x < W - 520);
+      let x = r() * W, y = r() * H;
+      for (let tries = 0; tries < 20 && !ok(x, y); tries++) { x = r() * W; y = r() * H; }
+      if (!ok(x, y)) x = x < W / 2 ? 30 + r() * 100 : W - 30 - r() * 100;
+      const k = i % 5, c = pal[i % pal.length], s = 40 + r() * 70, ph = r() * 6.28, rot = ph + Math.sin(t * .4 + ph) * .25;
       ctx.save(); ctx.translate(x + Math.sin(t * .3 + ph) * 10, y + Math.cos(t * .35 + ph) * 10); ctx.rotate(rot);
       ctx.lineWidth = 11; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = c; ctx.fillStyle = c;
       if (k === 0) { ctx.beginPath(); for (let j = 0; j <= 40; j++) { const xx = -s * 1.2 + j * s * 2.4 / 40; ctx[j ? 'lineTo' : 'moveTo'](xx, Math.sin(j / 40 * Math.PI * 3) * s * .25); } ctx.stroke(); }
