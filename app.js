@@ -26,14 +26,13 @@ function defaults() {
     stickers: [],
   };
 }
-// 原題庫：ChatGPT 生成的插畫（bank/ 資料夾），一張圖搭配不同文字出成多題
+// 原題庫：AI 生成的插畫（bank/ 資料夾，ChatGPT＋Canva），每張圖一題
 function sampleMatch() {
-  const B = k => 'bank/' + k + '.webp';
-  return [['apple', '蘋果', true], ['banana', '小黃瓜', false], ['puppy', '小狗', true], ['car', '飛機', false],
-    ['banana', '香蕉', true], ['apple', '番茄', false], ['car', '汽車', true], ['puppy', '小貓', false],
-    ['apple', '紅色的水果', true], ['banana', '黃色的水果', true], ['puppy', '會汪汪叫', true], ['car', '會在天上飛', false],
-    ['apple', '葡萄', false], ['car', '有四個輪子', true]]
-    .map(([k, text, isMatch]) => ({ img: B(k), text, isMatch }));
+  return [['apple', '蘋果', true], ['banana', '小黃瓜', false], ['puppy', '小狗', true], ['car', '公車', false],
+    ['umbrella', '雨傘', true], ['cat', '老虎', false], ['sunflower', '向日葵', true], ['bicycle', '摩托車', false],
+    ['watermelon', '西瓜', true], ['goldfish', '烏龜', false], ['soccer', '足球', true], ['airplane', '直升機', false],
+    ['bread', '麵包', true], ['moon', '太陽', false], ['strawberry', '草莓', true], ['cake', '生日蛋糕', true]]
+    .map(([k, text, isMatch]) => ({ img: 'bank/' + k + '.webp', text, isMatch }));
 }
 const OLD_SAMPLE = '蘋果,西瓜,小狗,飛機,雨傘';
 function merge(base, o) {
@@ -55,6 +54,8 @@ try {
     if (o.match && o.match.items && o.match.items.map(i => i.text).join(',') === OLD_SAMPLE) o.match.items = sampleMatch();
     if (o.opposite && o.opposite.items && o.opposite.items.length === 4 && o.opposite.items[0].prompt === '右手舉高') o.opposite.items = SG.OPP_PRESETS.slice(0, 16).map(clone);
   }
+  // 只用了 4 張圖的暫時題庫，換成 16 張完整題庫
+  if (o && o.match && o.match.items && o.match.items.length && o.match.items.every(i => /^bank\//.test(i.img || '')) && new Set(o.match.items.map(i => i.img)).size <= 4) o.match.items = sampleMatch();
   P = o ? merge(defaults(), o) : null; if (P) P.version = 2;
 } catch (e) { P = null; }
 if (!P) { P = defaults(); P.match.items = sampleMatch(); }
@@ -498,7 +499,7 @@ $('#fileOpen').onchange = async e => {
   } catch (err) { toast('這不是教案檔，無法開啟'); }
 };
 function loadBank(type) {
-  const n = type === 'match' ? 14 : 16;
+  const n = 16;
   if (!confirm(`要帶入原題庫（${n} 題）嗎？目前清單裡的題目會被換掉。`)) return;
   if (type === 'match') { P.match.items = sampleMatch(); renderMatch(); }
   else { P.opposite.items = SG.OPP_PRESETS.slice(0, 16).map(clone); renderOpp(); }
