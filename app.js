@@ -10,31 +10,32 @@ const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + '
 const DEF_TITLE = { match: '圖文配對大挑戰', opposite: '相反動作大挑戰' };
 const DEF_SUB = { match: '看圖、讀字，用身體回答！', opposite: '動動腦、動動身體！' };
 
-function emojiImg(e) {
-  const c = document.createElement('canvas'); c.width = c.height = 640;
-  const x = c.getContext('2d'); x.font = '470px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(e, 320, 350);
-  return c.toDataURL('image/png');
-}
 function defaults() {
   return {
-    version: 1, type: 'match',
+    version: 2, type: 'match',
     title: DEF_TITLE.match, subtitle: DEF_SUB.match,
     theme: 'warm', font: 'auto', customColor: '',
-    timing: { intro: 7, think: 5, answer: 4, outro: 6 },
-    order: 'seq', seed: 1, ending: '大家都做得很棒！',
-    credits: { designer: '', org: '', watermark: false },
+    timing: { intro: 7, think: 5, answer: 3, outro: 6 },
+    order: 'random', seed: 1, ending: '大家都做得很棒！',
+    credits: { designer: '鍾孟修 職能治療師', org: '愛迪樂健康促進團隊', watermark: false },
     labels: {},
     audio: { music: 'happy', musicVol: .45, duck: true, sfxPack: 'classic', sfxVol: .8, customName: '',
       ev: { intro: true, pop: true, tick: true, final: true, reveal: true, outro: true } },
     match: { yesAction: '雙手比圈', noAction: '雙手比叉', items: [] },
-    opposite: { rule: '看到指令，做出「相反動作」！', items: SG.OPP_PRESETS.slice(0, 4).map(clone) },
+    opposite: { rule: '看到指令，做出「相反動作」！', items: SG.OPP_PRESETS.slice(0, 16).map(clone) },
+    stickers: [],
   };
 }
+// 原題庫：ChatGPT 生成的插畫（bank/ 資料夾），一張圖搭配不同文字出成多題
 function sampleMatch() {
-  return [['🍎', '蘋果', true], ['🍌', '西瓜', false], ['🐶', '小狗', true], ['🚗', '飛機', false], ['☂️', '雨傘', true]]
-    .map(([e, text, isMatch]) => ({ img: emojiImg(e), text, isMatch }));
+  const B = k => 'bank/' + k + '.webp';
+  return [['apple', '蘋果', true], ['banana', '小黃瓜', false], ['puppy', '小狗', true], ['car', '飛機', false],
+    ['banana', '香蕉', true], ['apple', '番茄', false], ['car', '汽車', true], ['puppy', '小貓', false],
+    ['apple', '紅色的水果', true], ['banana', '黃色的水果', true], ['puppy', '會汪汪叫', true], ['car', '會在天上飛', false],
+    ['apple', '葡萄', false], ['car', '有四個輪子', true]]
+    .map(([k, text, isMatch]) => ({ img: B(k), text, isMatch }));
 }
+const OLD_SAMPLE = '蘋果,西瓜,小狗,飛機,雨傘';
 function merge(base, o) {
   for (const k in o) {
     if (o[k] && typeof o[k] === 'object' && !Array.isArray(o[k]) && base[k] && typeof base[k] === 'object') merge(base[k], o[k]);
@@ -43,7 +44,19 @@ function merge(base, o) {
   return base;
 }
 let P;
-try { const s = localStorage.getItem(KEY); P = s ? merge(defaults(), JSON.parse(s)) : null; } catch (e) { P = null; }
+try {
+  const s = localStorage.getItem(KEY), o = s ? JSON.parse(s) : null;
+  // 舊版存檔：作者欄是空的就填入新的預設作者
+  if (o && (o.version || 1) < 2) {
+    if (o.credits && !o.credits.designer && !o.credits.org) delete o.credits;
+    if (o.timing && o.timing.answer === 4) o.timing.answer = o.type === 'opposite' ? 2 : 3;
+    if (o.order === 'seq') o.order = 'random';
+    // 舊版的符號範例圖換成新的插畫題庫
+    if (o.match && o.match.items && o.match.items.map(i => i.text).join(',') === OLD_SAMPLE) o.match.items = sampleMatch();
+    if (o.opposite && o.opposite.items && o.opposite.items.length === 4 && o.opposite.items[0].prompt === '右手舉高') o.opposite.items = SG.OPP_PRESETS.slice(0, 16).map(clone);
+  }
+  P = o ? merge(defaults(), o) : null; if (P) P.version = 2;
+} catch (e) { P = null; }
 if (!P) { P = defaults(); P.match.items = sampleMatch(); }
 
 /* ---------- 自訂音樂（存在 IndexedDB，避免塞爆 localStorage） ---------- */
@@ -73,14 +86,14 @@ function changed(opts = {}) {
 }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(P)); }
-  catch (e) { toast('圖片太多，自動儲存空間不足，請按「儲存教案」存成檔案'); }
+  catch (e) { toast('圖片太多，自動儲存空間不足，請按「下載教案」存成檔案'); }
 }
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200); }
 
 /* ---------- 預覽播放器 ---------- */
 const cv = $('#cv'), cx = cv.getContext('2d');
 const pv = { t: 0, playing: false, last: 0 };
-let dirty = true;
+let dirty = true, selSticker = null;
 SG.onAsset = () => { dirty = true; };
 function frame(ts) {
   if (pv.playing) {
@@ -90,7 +103,7 @@ function frame(ts) {
     dirty = true;
   }
   pv.last = ts;
-  if (dirty || pv.playing || (ts | 0) % 2 === 0) { SG.renderFrame(cx, P, tl, pv.t, SG.getImg); dirty = false; updateHead(); }
+  if (dirty || pv.playing || (ts | 0) % 2 === 0) { SG.renderFrame(cx, selSticker != null && !pv.playing && !document.fullscreenElement ? { ...P, _sel: selSticker } : P, tl, pv.t, SG.getImg); dirty = false; updateHead(); }
   requestAnimationFrame(frame);
 }
 
@@ -194,6 +207,9 @@ $$('.type-card').forEach(b => b.onclick = () => {
   const old = P.type; P.type = b.dataset.type;
   if (!P.title || P.title === DEF_TITLE[old]) { P.title = DEF_TITLE[P.type]; $('#fTitle').value = P.title; }
   if (!P.subtitle || P.subtitle === DEF_SUB[old]) { P.subtitle = DEF_SUB[P.type]; $('#fSubtitle').value = P.subtitle; }
+  // 相反動作預設揭曉 2 秒、圖文配對 3 秒（使用者沒改過才自動換）
+  const AD = { match: 3, opposite: 2 };
+  if (P.timing.answer === AD[old]) { P.timing.answer = AD[P.type]; $('#tAnswer').value = P.timing.answer; $('#tAnswer').dispatchEvent(new Event('input')); }
   applyType(); seek(1.5); changed();
 });
 $$('.tabs button').forEach(b => b.onclick = () => {
@@ -221,6 +237,7 @@ $('#fWatermark').onchange = e => { P.credits.watermark = e.target.checked; chang
 function bindSlider(sel, get, set, show = v => v + ' 秒', opts) {
   const el = $(sel), out = el.parentElement.querySelector('output');
   const upd = () => { out.textContent = show(+el.value); };
+  if (el.step === '0.5') show = v => (Number.isInteger(v) ? v : v.toFixed(1)) + ' 秒';
   el.value = get(); upd();
   el.addEventListener('input', () => { set(+el.value); upd(); changed(opts); });
 }
@@ -340,7 +357,7 @@ $('#oppList').addEventListener('click', e => {
   else return;
   renderOpp(); changed();
 });
-$('#oppPreset').innerHTML = '<option value="">從範例加入…</option><option value="all">全部範例（12 題）</option>' + SG.OPP_PRESETS.map((x, i) => `<option value="${i}">${esc(x.prompt)} → ${esc(x.answer)}</option>`).join('');
+$('#oppPreset').innerHTML = '<option value="">從範例加入…</option><option value="all">全部範例（' + SG.OPP_PRESETS.length + ' 題）</option>' + SG.OPP_PRESETS.map((x, i) => `<option value="${i}">${esc(x.prompt)} → ${esc(x.answer)}</option>`).join('');
 $('#oppPreset').onchange = e => {
   const v = e.target.value; if (!v) return;
   const add = v === 'all' ? SG.OPP_PRESETS : [SG.OPP_PRESETS[+v]];
@@ -419,7 +436,7 @@ function drawThumbs() {
   const grid = $('#themeGrid');
   if (!grid.children.length) {
     grid.innerHTML = Object.entries(SG.THEMES).map(([k, v]) => `<button class="theme" data-k="${k}" type="button"><canvas width="480" height="270"></canvas><span>${esc(v.name)}</span></button>`).join('');
-    grid.onclick = e => { const b = e.target.closest('.theme'); if (!b) return; P.theme = b.dataset.k; P.customColor = ''; syncColor(); changed(); };
+    grid.onclick = e => { const b = e.target.closest('.theme'); if (!b) return; P.theme = b.dataset.k; P.customColor = ''; syncColor(); renderFonts(); changed(); };
   }
   const q = tl.segs.find(s => s.type === 'q'), t = q ? q.start + 1.6 : 2;
   [...grid.children].forEach(b => {
@@ -431,8 +448,13 @@ function drawThumbs() {
 function syncColor() { $('#fColor').value = P.customColor || SG.THEMES[P.theme].primary; }
 $('#fColor').addEventListener('input', e => { P.customColor = e.target.value; changed(); });
 $('#btnColorReset').onclick = () => { P.customColor = ''; syncColor(); changed(); };
-$('#fFont').value = P.font || 'auto';
-$('#fFont').onchange = e => { P.font = e.target.value; changed(); };
+function renderFonts() {
+  const T = SG.THEMES[P.theme] || SG.THEMES.warm, auto = SG.FONT_NAMES[T.font || 'hei'];
+  const opts = [['auto', '跟著主題', SG.FONTS[T.font || 'hei'], auto], ...Object.entries(SG.FONT_NAMES).map(([k, n]) => [k, n, SG.FONTS[k], ''])];
+  $('#fontGrid').innerHTML = opts.map(([k, n, fam, note]) => `<button type="button" class="font-opt${(P.font || 'auto') === k ? ' on' : ''}" data-k="${k}" role="radio" aria-checked="${(P.font || 'auto') === k}">
+    <span class="fs" style='font-family:${fam.replace(/'/g, '')}'>大家一起動</span><small>${esc(n)}${note ? '（' + esc(note) + '）' : ''}</small></button>`).join('');
+}
+$('#fontGrid').addEventListener('click', e => { const b = e.target.closest('.font-opt'); if (!b) return; P.font = b.dataset.k; renderFonts(); changed(); });
 const LABEL_NAMES = {
   ready: '開場：準備提示', matchAsk: '配對：題目上方提示', matchYes: '配對：符合', matchNo: '配對：不符合', doIt: '配對：動作卡標題',
   oppCmd: '相反：指令標籤', oppThink: '相反：思考提示', oppAnswer: '相反：答案標籤', oppDo: '相反：做動作提示', done: '結尾：大標', count: '結尾：題數（{n} 會換成題數）',
@@ -461,7 +483,7 @@ $('#btnSave').onclick = () => {
   const out = clone(P);
   if (P.audio.music === 'custom' && customRaw) out.customMusic = { name: customRaw.name, type: customRaw.type, b64: abToB64(customRaw.data) };
   download(new Blob([JSON.stringify(out)], { type: 'application/json' }), safeName(P.title) + '.教案.json');
-  toast('已存成教案檔，下次按「開啟教案」就能繼續編輯');
+  toast('已存成教案檔，下次按「上傳教案」就能繼續編輯');
 };
 $('#btnOpen').onclick = () => $('#fileOpen').click();
 $('#fileOpen').onchange = async e => {
@@ -475,10 +497,20 @@ $('#fileOpen').onchange = async e => {
     loadUI(); seek(0); toast('已開啟：' + (P.title || f.name));
   } catch (err) { toast('這不是教案檔，無法開啟'); }
 };
+function loadBank(type) {
+  const n = type === 'match' ? 14 : 16;
+  if (!confirm(`要帶入原題庫（${n} 題）嗎？目前清單裡的題目會被換掉。`)) return;
+  if (type === 'match') { P.match.items = sampleMatch(); renderMatch(); }
+  else { P.opposite.items = SG.OPP_PRESETS.slice(0, 16).map(clone); renderOpp(); }
+  changed(); SG.ready(P).then(() => { dirty = true; });
+  toast(`已帶入 ${n} 題原題庫`);
+}
+$('#btnBankMatch').onclick = () => loadBank('match');
+$('#btnBankOpp').onclick = () => loadBank('opposite');
 $('#btnNew').onclick = () => {
-  if (!confirm('要開始新的教案嗎？目前的內容會被清空（建議先「儲存教案」）。')) return;
+  if (!confirm('要開始新的教案嗎？目前的內容會被清空（建議先「下載教案」）。')) return;
   const type = P.type; P = defaults(); P.type = type; P.title = DEF_TITLE[type]; P.subtitle = DEF_SUB[type];
-  if (type === 'opposite') P.match.items = []; else P.opposite.items = [];
+  if (type === 'opposite') { P.match.items = []; P.timing.answer = 2; } else P.opposite.items = [];
   loadUI(); seek(0);
 };
 
@@ -525,6 +557,245 @@ $('#expGo').onclick = async () => {
 $('#expClose').onclick = () => { if (ctrl) ctrl.abort(); else dlg.close(); };
 dlg.addEventListener('cancel', e => { if (ctrl) { e.preventDefault(); ctrl.abort(); } });
 
+/* ---------- Logo／圖片圖層 ---------- */
+const WHERE = { all: '整支影片', intro: '只在開場和結尾', game: '只在題目中' };
+const POS = [['左上', .1, .12], ['中上', .5, .1], ['右上', .9, .12], ['左下', .1, .86], ['右下', .9, .86], ['正中', .5, .5]];
+function renderStickers() {
+  const L = P.stickers || (P.stickers = []);
+  $('#stickerList').innerHTML = L.length ? L.map((st, i) => `
+    <div class="item sticker${selSticker === i ? ' sel' : ''}" data-i="${i}">
+      <div class="st-thumb"><img src="${st.img}" alt=""></div>
+      <div class="st-body">
+        <div class="st-row">
+          <select data-f="where" class="sm" aria-label="出現時機">${Object.entries(WHERE).map(([k, v]) => `<option value="${k}"${st.where === k ? ' selected' : ''}>${v}</option>`).join('')}</select>
+          <select data-f="pos" class="sm" aria-label="快速位置"><option value="">移到…</option>${POS.map(([n], k) => `<option value="${k}">${n}</option>`).join('')}</select>
+        </div>
+        <label class="st-size">大小 <input type="range" data-f="h" min="4" max="80" step="1" value="${Math.round((st.h || .14) * 100)}"></label>
+        <label class="st-size">透明度 <input type="range" data-f="opacity" min="10" max="100" step="5" value="${Math.round((st.opacity ?? 1) * 100)}"></label>
+        <div class="st-row">
+          <button class="sm ghost" data-act="edit">重新裁剪／去背</button>
+          <button class="sm ghost" data-act="up" ${i ? '' : 'disabled'}>上移</button>
+          <button class="sm ghost danger" data-act="del">刪除</button>
+        </div>
+      </div>
+    </div>`).join('') : '<p class="hint empty">還沒有圖片。可以放單位 Logo、吉祥物或裝飾貼圖。</p>';
+}
+$('#btnAddSticker').onclick = () => { cropTarget = null; $('#fileSticker').value = ''; $('#fileSticker').click(); };
+$('#fileSticker').onchange = async e => { const f = e.target.files[0]; if (f) openCrop(await fileToImage(f), null); };
+$('#stickerList').addEventListener('input', e => {
+  const row = e.target.closest('.sticker'); if (!row) return;
+  const st = P.stickers[+row.dataset.i], f = e.target.dataset.f;
+  if (f === 'h') st.h = +e.target.value / 100;
+  else if (f === 'opacity') st.opacity = +e.target.value / 100;
+  else return;
+  selSticker = +row.dataset.i; changed({ thumbs: false });
+});
+$('#stickerList').addEventListener('change', e => {
+  const row = e.target.closest('.sticker'); if (!row) return;
+  const i = +row.dataset.i, st = P.stickers[i], f = e.target.dataset.f;
+  if (f === 'where') { st.where = e.target.value; if (st.where === 'game' && tl.segs[1]) seek(tl.segs[1].start + 1); else if (st.where === 'intro') seek(1.5); }
+  else if (f === 'pos' && e.target.value !== '') { const [, x, y] = POS[+e.target.value]; st.x = x; st.y = y; e.target.value = ''; }
+  selSticker = i; changed({ thumbs: false });
+});
+$('#stickerList').addEventListener('click', e => {
+  const row = e.target.closest('.sticker'); if (!row) return;
+  const i = +row.dataset.i, b = e.target.closest('button');
+  selSticker = i; dirty = true;
+  if (!b) { $$('#stickerList .sticker').forEach(x => x.classList.toggle('sel', x === row)); return; }
+  if (b.dataset.act === 'del') { P.stickers.splice(i, 1); selSticker = null; }
+  else if (b.dataset.act === 'up') { [P.stickers[i - 1], P.stickers[i]] = [P.stickers[i], P.stickers[i - 1]]; selSticker = i - 1; }
+  else if (b.dataset.act === 'edit') { const st = P.stickers[i]; cropTarget = i; loadImage(st.src || st.img).then(im => openCrop(im, st.crop)); return; }
+  renderStickers(); changed({ thumbs: false });
+});
+
+/* 在預覽畫面上拖曳圖片、拖右下角縮放 */
+function cvPoint(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * SG.W, y: (e.clientY - r.top) / r.height * SG.H }; }
+function hitSticker(pt) {
+  const L = P.stickers || [];
+  for (let i = L.length - 1; i >= 0; i--) {
+    const img = SG.getImg(L[i].img); if (!img.naturalWidth) continue;
+    const r = SG.stickerRect(L[i], img);
+    if (pt.x >= r.x - 10 && pt.x <= r.x + r.w + 26 && pt.y >= r.y - 10 && pt.y <= r.y + r.h + 26) return { i, r, corner: pt.x > r.x + r.w - 30 && pt.y > r.y + r.h - 30 };
+  }
+  return null;
+}
+cv.addEventListener('pointerdown', e => {
+  if (document.fullscreenElement) return;
+  const pt = cvPoint(e), hit = hitSticker(pt);
+  if (!hit) { if (selSticker != null) { selSticker = null; dirty = true; renderStickers(); } return; }
+  e.preventDefault(); cv.setPointerCapture(e.pointerId);
+  if (pv.playing) pause();
+  selSticker = hit.i; renderStickers(); dirty = true;
+  const st = P.stickers[hit.i], x0 = st.x, y0 = st.y, h0 = st.h || .14;
+  cv.onpointermove = ev => {
+    const q = cvPoint(ev);
+    if (hit.corner) { const top = hit.r.y; st.h = Math.max(.03, Math.min(.95, (q.y - top) / SG.H)); st.y = (top + st.h * SG.H / 2) / SG.H; st.x = x0 + (st.h - h0) * SG.H * (hit.r.w / hit.r.h) / 2 / SG.W; }
+    else { st.x = Math.max(0, Math.min(1, x0 + (q.x - pt.x) / SG.W)); st.y = Math.max(0, Math.min(1, y0 + (q.y - pt.y) / SG.H)); }
+    dirty = true;
+  };
+  cv.onpointerup = () => { cv.onpointermove = null; cv.onpointerup = null; renderStickers(); changed({ thumbs: false }); };
+});
+cv.addEventListener('pointermove', e => {
+  if (cv.onpointermove || document.fullscreenElement) return;
+  const hit = hitSticker(cvPoint(e)); cv.style.cursor = hit ? (hit.corner ? 'nwse-resize' : 'move') : '';
+});
+
+/* ---------- 裁剪與去背 ---------- */
+let cropTarget = null;
+const CR = { img: null, src: null, cut: null, rect: null, shape: 'free', bg: 'none', key: null, picking: false, aiCanvas: null };
+const ccv = $('#cropCv'), cctx = ccv.getContext('2d');
+function loadImage(src) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
+function fileToImage(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => loadImage(r.result).then(res, rej); r.onerror = rej; r.readAsDataURL(f); }); }
+function openCrop(im, crop) {
+  const M = 1600, s = Math.min(1, M / Math.max(im.naturalWidth, im.naturalHeight));
+  const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * s); c.height = Math.round(im.naturalHeight * s);
+  c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+  CR.src = c; CR.aiCanvas = null;
+  CR.shape = crop?.shape || 'free'; CR.bg = crop?.bg === 'ai' ? 'none' : (crop?.bg || 'none'); CR.key = crop?.key || cornerColor(c); CR.picking = false;
+  $('#tol').value = crop?.tol ?? 40; $('#tolAll').checked = !!crop?.all;
+  CR.rect = crop?.rect ? { ...crop.rect } : { x: 0, y: 0, w: c.width, h: c.height };
+  syncCropUI(); processCut(); $('#dlgCrop').showModal();
+  $('#cropStatus').textContent = '拖曳框線調整範圍；拖曳框內可移動。';
+}
+function cornerColor(c) {
+  const x = c.getContext('2d'), w = c.width, h = c.height, pts = [[1, 1], [w - 2, 1], [1, h - 2], [w - 2, h - 2]];
+  const acc = [0, 0, 0]; pts.forEach(([a, b]) => { const d = x.getImageData(a, b, 1, 1).data; acc[0] += d[0]; acc[1] += d[1]; acc[2] += d[2]; });
+  return acc.map(v => Math.round(v / 4));
+}
+function syncCropUI() {
+  $$('#cropShape button').forEach(b => b.classList.toggle('on', b.dataset.v === CR.shape));
+  $$('#cropBg button').forEach(b => b.classList.toggle('on', b.dataset.v === CR.bg));
+  $('#colorOpts').hidden = CR.bg !== 'color';
+  $('#keySwatch').style.background = `rgb(${CR.key.join(',')})`;
+  $('#btnPick').classList.toggle('on', CR.picking);
+}
+/* 去除背景色：從邊緣往內連通填色（或整張同色），邊緣做柔化 */
+function removeColor(src, key, tol, all) {
+  const w = src.width, h = src.height, c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.drawImage(src, 0, 0);
+  const id = x.getImageData(0, 0, w, h), d = id.data, n = w * h;
+  const dist = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const r = d[i * 4] - key[0], g = d[i * 4 + 1] - key[1], b = d[i * 4 + 2] - key[2]; dist[i] = Math.sqrt(r * r * .3 + g * g * .59 + b * b * .11) * 1.6; }
+  const soft = tol * 0.5, lim = tol + soft;
+  let mark;
+  if (all) mark = null;
+  else {
+    mark = new Uint8Array(n); const st = [];
+    for (let i = 0; i < w; i++) { st.push(i, (h - 1) * w + i); }
+    for (let j = 0; j < h; j++) { st.push(j * w, j * w + w - 1); }
+    while (st.length) {
+      const i = st.pop(); if (mark[i] || dist[i] > lim) continue; mark[i] = 1;
+      const px = i % w;
+      if (px > 0) st.push(i - 1); if (px < w - 1) st.push(i + 1); if (i >= w) st.push(i - w); if (i < n - w) st.push(i + w);
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    if (mark && !mark[i]) continue;
+    const dd = dist[i]; if (dd > lim) continue;
+    const a = dd <= tol ? 0 : (dd - tol) / soft;
+    d[i * 4 + 3] = Math.round(d[i * 4 + 3] * a);
+  }
+  x.putImageData(id, 0, 0); return c;
+}
+async function aiRemove() {
+  if (CR.aiCanvas) return CR.aiCanvas;
+  $('#cropStatus').textContent = 'AI 去背中…第一次使用要下載模型（約 40MB），請稍候。';
+  const mod = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
+  const blob = await new Promise(r => CR.src.toBlob(r, 'image/png'));
+  const out = await mod.removeBackground(blob, { progress: (k, cur, tot) => { if (tot) $('#cropStatus').textContent = `AI 去背：下載模型 ${Math.round(cur / tot * 100)}%`; } });
+  const im = await loadImage(URL.createObjectURL(out));
+  const c = document.createElement('canvas'); c.width = CR.src.width; c.height = CR.src.height; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+  CR.aiCanvas = c; return c;
+}
+let cutTimer;
+function processCut() {
+  clearTimeout(cutTimer);
+  cutTimer = setTimeout(async () => {
+    try {
+      if (CR.bg === 'color') CR.cut = removeColor(CR.src, CR.key, +$('#tol').value, $('#tolAll').checked);
+      else if (CR.bg === 'ai') { $('#cropOk').disabled = true; CR.cut = await aiRemove(); $('#cropStatus').textContent = 'AI 去背完成。邊緣不理想可以改用「去除背景色」。'; }
+      else CR.cut = CR.src;
+    } catch (err) {
+      console.error(err); CR.bg = 'none'; CR.cut = CR.src; syncCropUI();
+      $('#cropStatus').textContent = 'AI 去背失敗（可能是網路或瀏覽器不支援），請改用「去除背景色」。';
+    }
+    $('#cropOk').disabled = false; drawCrop();
+  }, CR.bg === 'color' ? 60 : 0);
+}
+let CV = { s: 1, ox: 0, oy: 0 };
+function drawCrop() {
+  const c = CR.cut || CR.src; if (!c) return;
+  const W2 = ccv.width, H2 = ccv.height;
+  cctx.clearRect(0, 0, W2, H2);
+  for (let y = 0; y < H2; y += 20) for (let x = 0; x < W2; x += 20) { cctx.fillStyle = ((x + y) / 20) % 2 ? '#E6E1DA' : '#FFFFFF'; cctx.fillRect(x, y, 20, 20); }
+  const s = Math.min((W2 - 40) / c.width, (H2 - 40) / c.height), ox = (W2 - c.width * s) / 2, oy = (H2 - c.height * s) / 2;
+  CV = { s, ox, oy };
+  cctx.drawImage(c, ox, oy, c.width * s, c.height * s);
+  const r = CR.rect, rx = ox + r.x * s, ry = oy + r.y * s, rw = r.w * s, rh = r.h * s;
+  cctx.save(); cctx.fillStyle = 'rgba(30,20,10,.5)'; cctx.beginPath(); cctx.rect(0, 0, W2, H2);
+  if (CR.shape === 'circle') cctx.ellipse(rx + rw / 2, ry + rh / 2, rw / 2, rh / 2, 0, 0, Math.PI * 2, true); else cctx.rect(rx + rw, ry, -rw, rh);
+  cctx.fill('evenodd'); cctx.restore();
+  cctx.strokeStyle = '#FFFFFF'; cctx.lineWidth = 2; cctx.setLineDash([8, 6]); cctx.strokeRect(rx, ry, rw, rh); cctx.setLineDash([]);
+  cctx.fillStyle = '#E8632B'; [[rx, ry], [rx + rw, ry], [rx, ry + rh], [rx + rw, ry + rh]].forEach(([x, y]) => { cctx.fillRect(x - 9, y - 9, 18, 18); });
+}
+function cPoint(e) { const b = ccv.getBoundingClientRect(); const px = (e.clientX - b.left) / b.width * ccv.width, py = (e.clientY - b.top) / b.height * ccv.height; return { px, py, x: (px - CV.ox) / CV.s, y: (py - CV.oy) / CV.s }; }
+function clampRect(r) {
+  const W0 = CR.src.width, H0 = CR.src.height;
+  r.w = Math.max(10, Math.min(W0, r.w)); r.h = Math.max(10, Math.min(H0, r.h));
+  r.x = Math.max(0, Math.min(W0 - r.w, r.x)); r.y = Math.max(0, Math.min(H0 - r.h, r.y)); return r;
+}
+function squareRect() { const r = CR.rect, m = Math.min(r.w, r.h); CR.rect = clampRect({ x: r.x + (r.w - m) / 2, y: r.y + (r.h - m) / 2, w: m, h: m }); }
+ccv.addEventListener('pointerdown', e => {
+  const p0 = cPoint(e);
+  if (CR.picking) {
+    const x = Math.floor(p0.x), y = Math.floor(p0.y);
+    if (x >= 0 && y >= 0 && x < CR.src.width && y < CR.src.height) { const d = CR.src.getContext('2d').getImageData(x, y, 1, 1).data; CR.key = [d[0], d[1], d[2]]; }
+    CR.picking = false; syncCropUI(); processCut(); return;
+  }
+  ccv.setPointerCapture(e.pointerId);
+  const r0 = { ...CR.rect }, tolPx = 16 / CV.s;
+  const near = (a, b) => Math.abs(a - b) < tolPx;
+  const L = near(p0.x, r0.x), R = near(p0.x, r0.x + r0.w), T = near(p0.y, r0.y), B = near(p0.y, r0.y + r0.h);
+  const inside = p0.x > r0.x && p0.x < r0.x + r0.w && p0.y > r0.y && p0.y < r0.y + r0.h;
+  const mode = (L || R || T || B) ? 'resize' : inside ? 'move' : 'new';
+  const lock = CR.shape !== 'free';
+  ccv.onpointermove = ev => {
+    const p = cPoint(ev), dx = p.x - p0.x, dy = p.y - p0.y; let r = { ...r0 };
+    if (mode === 'move') { r.x += dx; r.y += dy; }
+    else if (mode === 'new') { r = { x: Math.min(p0.x, p.x), y: Math.min(p0.y, p.y), w: Math.abs(dx), h: Math.abs(dy) }; if (lock) { const m = Math.max(r.w, r.h); r.w = r.h = m; if (p.x < p0.x) r.x = p0.x - m; if (p.y < p0.y) r.y = p0.y - m; } }
+    else {
+      if (L) { r.x += dx; r.w -= dx; } if (R) r.w += dx; if (T) { r.y += dy; r.h -= dy; } if (B) r.h += dy;
+      if (lock) { const m = Math.max(r.w, r.h); if (L) r.x = r0.x + r0.w - m; if (T) r.y = r0.y + r0.h - m; r.w = r.h = m; }
+    }
+    if (r.w < 0) { r.x += r.w; r.w = -r.w; } if (r.h < 0) { r.y += r.h; r.h = -r.h; }
+    CR.rect = clampRect(r); if (lock && CR.rect.w !== CR.rect.h) squareRect(); drawCrop();
+  };
+  ccv.onpointerup = () => { ccv.onpointermove = null; };
+});
+$('#cropShape').onclick = e => { const b = e.target.closest('button'); if (!b) return; CR.shape = b.dataset.v; if (CR.shape !== 'free') squareRect(); syncCropUI(); drawCrop(); };
+$('#cropBg').onclick = e => { const b = e.target.closest('button'); if (!b) return; CR.bg = b.dataset.v; syncCropUI(); processCut(); };
+$('#cropAll').onclick = () => { CR.rect = { x: 0, y: 0, w: CR.src.width, h: CR.src.height }; if (CR.shape !== 'free') squareRect(); drawCrop(); };
+$('#btnPick').onclick = () => { CR.picking = !CR.picking; syncCropUI(); $('#cropStatus').textContent = CR.picking ? '在圖片上點一下要去除的顏色。' : ''; };
+$('#tol').oninput = processCut; $('#tolAll').onchange = processCut;
+$('#cropCancel').onclick = () => $('#dlgCrop').close();
+$('#cropOk').onclick = () => {
+  const c = CR.cut || CR.src, r = CR.rect, M = 900, s = Math.min(1, M / Math.max(r.w, r.h));
+  const o = document.createElement('canvas'); o.width = Math.max(1, Math.round(r.w * s)); o.height = Math.max(1, Math.round(r.h * s));
+  const x = o.getContext('2d');
+  if (CR.shape === 'circle') { x.beginPath(); x.ellipse(o.width / 2, o.height / 2, o.width / 2, o.height / 2, 0, 0, Math.PI * 2); x.clip(); }
+  x.drawImage(c, r.x, r.y, r.w, r.h, 0, 0, o.width, o.height);
+  let url = o.toDataURL('image/webp', .9); if (!url.startsWith('data:image/webp')) url = o.toDataURL('image/png');
+  // 原圖（縮小版）一起存，之後可以重新裁剪
+  let src = CR.src.toDataURL('image/webp', .85); if (!src.startsWith('data:image/webp')) src = CR.src.toDataURL('image/jpeg', .85);
+  const crop = { rect: { ...r }, shape: CR.shape, bg: CR.bg, key: CR.key, tol: +$('#tol').value, all: $('#tolAll').checked };
+  if (cropTarget != null && P.stickers[cropTarget]) Object.assign(P.stickers[cropTarget], { img: url, src, crop });
+  else { P.stickers.push({ img: url, src, crop, x: .9, y: .12, h: .16, where: 'all', opacity: 1 }); cropTarget = P.stickers.length - 1; }
+  selSticker = cropTarget;
+  SG.getImg(url);
+  $('#dlgCrop').close(); renderStickers(); changed({ thumbs: false });
+  toast('已加入。可以直接在預覽畫面上拖曳位置，拖右下角方塊縮放。');
+};
+
 /* ---------- 啟動 ---------- */
 function loadUI() {
   ['#fTitle', '#fSubtitle', '#fYes', '#fNo', '#fRule', '#fEnding', '#fDesigner', '#fOrg'].forEach(s => {
@@ -533,7 +804,7 @@ function loadUI() {
   });
   const sl = { '#tIntro': P.timing.intro, '#tThink': P.timing.think, '#tAnswer': P.timing.answer, '#tOutro': P.timing.outro, '#musicVol': Math.round(P.audio.musicVol * 100), '#sfxVol': Math.round(P.audio.sfxVol * 100) };
   for (const s in sl) { $(s).value = sl[s]; $(s).dispatchEvent(new Event('input')); }
-  $('#fWatermark').checked = !!P.credits.watermark; $('#duck').checked = P.audio.duck; $('#fFont').value = P.font || 'auto';
+  $('#fWatermark').checked = !!P.credits.watermark; $('#duck').checked = P.audio.duck; renderFonts(); renderStickers(); selSticker = null;
   $('#btnShuffle').hidden = P.order !== 'random';
   $$('#orderCtl button').forEach(b => b.classList.toggle('on', b.dataset.v === P.order));
   if (P.audio.music === 'custom' && !customBuf) P.audio.music = 'happy';
@@ -544,6 +815,7 @@ function loadUI() {
   try { const m = await idbGet('music'); if (m && m.data) await setCustomMusic(m.name, m.type, m.data, false); } catch (e) { /* ignore */ }
   loadUI(); setPlayIcon(); pv.t = 1.5;
   await SG.ready(P); dirty = true;
+  setTimeout(() => SG.preloadFonts(P).then(() => { dirty = true; drawThumbs(); renderFonts(); }), 1200);
   requestAnimationFrame(t => { pv.last = t; frame(t); });
   window.__sgv = { get P() { return P; }, get tl() { return tl; }, seek, play, pause };
 })();

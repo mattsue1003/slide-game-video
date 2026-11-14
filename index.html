@@ -7,7 +7,7 @@
 <meta name="description" content="老師自己做互動簡報遊戲（圖文配對、相反動作），加上背景音樂與音效，一鍵轉成 MP4 影片上傳 YouTube 帶學員操作。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@700;900&family=Chiron+GoRound+TC:wght@500;700;900&family=Huninn&family=Iansui&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,8 +18,8 @@
   </div>
   <div class="actions">
     <button id="btnNew" class="ghost">新教案</button>
-    <button id="btnOpen" class="ghost">開啟教案</button>
-    <button id="btnSave" class="ghost">儲存教案</button>
+    <button id="btnOpen" class="ghost" title="開啟電腦裡的 .教案.json 檔">上傳教案</button>
+    <button id="btnSave" class="ghost" title="下載成 .教案.json 檔，可分享給同事">下載教案</button>
     <button id="btnPresent">全螢幕帶操作</button>
     <button id="btnExport" class="primary">匯出影片 MP4</button>
   </div>
@@ -52,7 +52,7 @@
 
       <div class="only-match">
         <div class="list-head"><h3>題目 <span id="matchCount" class="count"></span></h3>
-          <div><button id="btnBatchImg" class="sm">批次上傳圖片</button><button id="btnAddMatch" class="sm primary">＋ 新增題目</button></div>
+          <div><button id="btnBankMatch" class="sm ghost">帶入原題庫</button><button id="btnBatchImg" class="sm">批次上傳圖片</button><button id="btnAddMatch" class="sm primary">＋ 新增題目</button></div>
         </div>
         <p class="hint">每題放一張圖和一段文字，再選「符合／不符合」。可以把多張圖片直接拖進來，檔名會變成文字。</p>
         <div id="matchList" class="items droppable"></div>
@@ -62,6 +62,7 @@
         <div class="list-head"><h3>題目 <span id="oppCount" class="count"></span></h3>
           <div>
             <select id="oppPreset" class="sm" aria-label="從範例加入"><option value="">從範例加入…</option></select>
+            <button id="btnBankOpp" class="sm ghost">帶入原題庫</button>
             <button id="btnAddOpp" class="sm primary">＋ 新增題目</button>
           </div>
         </div>
@@ -82,10 +83,10 @@
         <div class="field"><label for="fRule">開場顯示的規則</label><input id="fRule" maxlength="40"></div>
       </div>
       <h3>每段時間（秒）</h3>
-      <div class="slider"><label for="tIntro">開場規則</label><input type="range" id="tIntro" min="3" max="20" step="1"><output></output></div>
-      <div class="slider"><label for="tThink">思考時間（倒數）</label><input type="range" id="tThink" min="2" max="20" step="1"><output></output></div>
-      <div class="slider"><label for="tAnswer">揭曉＋做動作</label><input type="range" id="tAnswer" min="2" max="20" step="1"><output></output></div>
-      <div class="slider"><label for="tOutro">結尾</label><input type="range" id="tOutro" min="3" max="15" step="1"><output></output></div>
+      <div class="slider"><label for="tIntro">開場規則</label><input type="range" id="tIntro" min="2" max="20" step="0.5"><output></output></div>
+      <div class="slider"><label for="tThink">思考時間（倒數）</label><input type="range" id="tThink" min="1" max="20" step="0.5"><output></output></div>
+      <div class="slider"><label for="tAnswer">揭曉＋做動作</label><input type="range" id="tAnswer" min="1" max="20" step="0.5"><output></output></div>
+      <div class="slider"><label for="tOutro">結尾</label><input type="range" id="tOutro" min="2" max="15" step="0.5"><output></output></div>
       <h3>題目順序</h3>
       <div class="seg-ctl" id="orderCtl"><button data-v="seq">依照清單</button><button data-v="random">隨機打亂</button></div>
       <button id="btnShuffle" class="sm ghost" hidden>重新洗牌</button>
@@ -112,12 +113,16 @@
     <section class="tab" id="tab-look" hidden>
       <h3>主題模板</h3>
       <div id="themeGrid" class="theme-grid"></div>
-      <div class="row2">
-        <div class="field"><label for="fFont">字體</label>
-          <select id="fFont"><option value="auto">跟著主題</option><option value="hei">黑體（清楚）</option><option value="kai">楷書手寫</option></select></div>
-        <div class="field"><label for="fColor">主色</label>
-          <div class="color-row"><input type="color" id="fColor"><button id="btnColorReset" class="sm ghost">用主題色</button></div></div>
-      </div>
+      <h3>字體</h3>
+      <div id="fontGrid" class="font-grid" role="radiogroup" aria-label="字體"></div>
+      <div class="field"><label for="fColor">主色</label>
+        <div class="color-row"><input type="color" id="fColor"><button id="btnColorReset" class="sm ghost">用主題色</button></div></div>
+
+      <h3>Logo 與圖片</h3>
+      <p class="hint">上傳 Logo 或裝飾圖片，可以裁剪、去背。加好之後直接在右邊預覽畫面上拖曳位置。</p>
+      <div id="stickerList" class="items"></div>
+      <button id="btnAddSticker" class="sm primary">＋ 上傳 Logo／圖片</button>
+      <input type="file" id="fileSticker" accept="image/*" hidden>
 
       <h3>作者資訊</h3>
       <div class="field"><label for="fDesigner">設計者</label><input id="fDesigner" maxlength="30" placeholder="例如：王小明 職能治療師"></div>
@@ -160,6 +165,30 @@
     <button id="expClose" class="ghost">關閉</button>
     <button id="expGo" class="primary">開始匯出</button>
     <a id="expDl" class="btn primary" hidden>下載影片</a>
+  </div>
+</dialog>
+
+<dialog id="dlgCrop" class="crop-dlg">
+  <h2>裁剪與去背</h2>
+  <div class="crop-wrap"><canvas id="cropCv" width="900" height="560"></canvas></div>
+  <div class="crop-tools">
+    <div class="ct-row"><span class="ct-lab">形狀</span>
+      <div class="seg-ctl" id="cropShape"><button data-v="free" class="on">自由</button><button data-v="square">正方形</button><button data-v="circle">圓形</button></div>
+      <button id="cropAll" class="sm ghost">選取整張</button>
+    </div>
+    <div class="ct-row"><span class="ct-lab">去背</span>
+      <div class="seg-ctl" id="cropBg"><button data-v="none" class="on">不去背</button><button data-v="color">去除背景色</button><button data-v="ai">AI 智慧去背</button></div>
+    </div>
+    <div class="ct-row" id="colorOpts" hidden><span class="ct-lab">背景色</span>
+      <span id="keySwatch" class="swatch"></span><button id="btnPick" class="sm ghost">用滴管點選</button>
+      <label class="tol">容差 <input type="range" id="tol" min="5" max="120" value="40"></label>
+      <label class="check"><input type="checkbox" id="tolAll"> 圖中同色也去除</label>
+    </div>
+    <p id="cropStatus" class="hint">拖曳框線調整範圍；拖曳框內可移動。</p>
+  </div>
+  <div class="btns">
+    <button id="cropCancel" class="ghost">取消</button>
+    <button id="cropOk" class="primary">完成</button>
   </div>
 </dialog>
 

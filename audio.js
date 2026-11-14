@@ -121,6 +121,28 @@ const STYLES = {
         tone(ac, o, { f: mtof(n), t, d: .9, v: .07 }); tone(ac, o, { f: mtof(n) * 4, t, d: .25, v: .012 });
       }
     },
+  },  latin: {
+    name: '拉丁派對', desc: '響棒、康加鼓，熱情又有律動', bpm: 112, key: 62, prog: [[0, 'm'], [5, 'm'], [7, 'M'], [0, 'm']],
+    step(ac, o, { s, t, spb, root, tones, r }) {
+      if (s === 0 || s === 3 || s === 6 || s === 10 || s === 12) tone(ac, o, { f: 2400, t, d: .035, v: .09 });
+      if (s % 4 === 0) kick(ac, o, t, .7);
+      if (s % 4 === 3 || s === 14) tone(ac, o, { f: s === 14 ? 330 : 260, f2: 190, t, d: .14, v: .2 });
+      if (s % 2 === 1) noise(ac, o, { t, d: .05, v: .07, bp: 6000, q: .8 });
+      if (s === 0 || s === 6 || s === 8 || s === 14) tone(ac, o, { type: 'triangle', f: mtof(root - 24 + (s >= 8 ? 7 : 0)), t, d: spb * .45, v: .34 });
+      if (s === 2 || s === 5 || s === 10 || s === 13) chord(ac, o, tones.map(n => n + 12), t, .12, .05, 'square', 2000);
+      if (s % 4 === 2 && r() < .6) tone(ac, o, { type: 'triangle', f: mtof(tones[Math.floor(r() * 3)] + 24), t, d: .2, v: .05 });
+    },
+  },
+  march: {
+    name: '精神進行曲', desc: '小鼓軍樂、銅管和弦，振奮有力', bpm: 112, key: 58, prog: [[0, 'M'], [5, 'M'], [7, 'M'], [0, 'M']],
+    step(ac, o, { b, s, t, spb, root, tones }) {
+      if (s % 8 === 0) kick(ac, o, t, .9);
+      if (s % 8 === 4) noise(ac, o, { t, d: .5, v: .06, hp: 6000 });
+      if (s % 2 === 0 || (s % 8 === 7)) snare(ac, o, t, s % 4 === 0 ? .2 : .1);
+      if (s % 4 === 0) tone(ac, o, { type: 'sawtooth', f: mtof(root - 24 + (s % 8 ? 7 : 0)), t, d: spb * .5, v: .26, lp: 700 });
+      if (s === 0 || s === 8 || (b % 2 && s === 12)) chord(ac, o, tones.map(n => n + 12), t, spb * (s === 12 ? .5 : 1.4), .05, 'sawtooth', 1600);
+      if (s % 4 === 2) tone(ac, o, { type: 'square', f: mtof(tones[(s / 2 + b) % 3] + 24), t, d: spb * .3, v: .022, lp: 2500 });
+    },
   },
 };
 
@@ -148,6 +170,8 @@ const PACKS = {
   game: { name: '電玩闖關', desc: '8-bit 嗶嗶、過關音' },
   show: { name: '綜藝節目', desc: '鼓聲滾奏、鈸聲、掌聲' },
   soft: { name: '木琴柔和', desc: '溫和不刺耳，適合長者' },
+  cartoon: { name: '卡通搞笑', desc: '彈簧聲、滑哨、喇叭叭叭' },
+  space: { name: '太空科幻', desc: '雷射、掃頻、電子嗶嗶' },
 };
 const EVENTS = {
   intro: '開場音效', pop: '題目出現', tick: '每秒滴答', final: '最後 3 秒倒數', reveal: '揭曉答案', outro: '結尾慶祝',
@@ -164,6 +188,29 @@ function sfx(ac, o, pack, k, t, V, d) {
       case 'no': tone(ac, o, { type: 'square', f: 300, f2: 90, t, d: .45, v: v(.12) }); break;
       case 'intro': tone(ac, o, { type: 'square', f: mtof(83), t, d: .08, v: v(.1) }); tone(ac, o, { type: 'square', f: mtof(88), t: t + .08, d: .4, v: v(.1) }); break;
       case 'outro': [60, 64, 67, 72, 76, 79, 84].forEach((n, i) => tone(ac, o, { type: 'square', f: mtof(n + 12), t: t + i * .08, d: i === 6 ? .6 : .08, v: v(.1) })); break;
+    }
+  } else if (pack === 'cartoon') {
+    const boing = (tt, f, vv) => { tone(ac, o, { f, f2: f * 2.2, t: tt, d: .28, v: vv }); const os = ac.createOscillator(), lfo = ac.createOscillator(), lg = ac.createGain(), g = ac.createGain();
+      os.frequency.value = f * 1.5; lfo.frequency.value = 22; lg.gain.value = f * .25; lfo.connect(lg).connect(os.frequency); env(g, tt, vv * .8, .005, .4); os.connect(g).connect(o); os.start(tt); lfo.start(tt); os.stop(tt + .45); lfo.stop(tt + .45); };
+    switch (k) {
+      case 'tick': tone(ac, o, { type: 'triangle', f: 700, f2: 500, t, d: .05, v: v(.14) }); break;
+      case 'final': tone(ac, o, { type: 'square', f: 520, t, d: .09, v: v(.08), lp: 1800 }); tone(ac, o, { type: 'square', f: 525, t, d: .09, v: v(.08), lp: 1800 }); break;
+      case 'pop': tone(ac, o, { f: 300, f2: 1400, t, d: .06, v: v(.22) }); noise(ac, o, { t: t + .05, d: .03, v: v(.15), bp: 2500, q: 3 }); break;
+      case 'yes': boing(t, 220, v(.22)); tone(ac, o, { f: 600, f2: 2400, t: t + .2, d: .45, v: v(.12), a: .2 }); break;
+      case 'no': [0, .22, .44].forEach((dt, i) => tone(ac, o, { type: 'sawtooth', f: 233 - i * 12, t: t + dt, d: i === 2 ? .5 : .16, v: v(.14), lp: 1100, a: .01 })); break;
+      case 'intro': tone(ac, o, { f: 400, f2: 1800, t, d: .5, v: v(.14), a: .3 }); boing(t + .55, 260, v(.2)); break;
+      case 'outro': [0, .16, .32].forEach(dt => tone(ac, o, { type: 'square', f: 440, t: t + dt, d: .1, v: v(.08), lp: 1500 }));
+        boing(t + .5, 300, v(.22)); tone(ac, o, { f: 900, f2: 3000, t: t + .9, d: .5, v: v(.12), a: .25 }); break;
+    }
+  } else if (pack === 'space') {
+    switch (k) {
+      case 'tick': tone(ac, o, { type: 'sine', f: 1900, f2: 1500, t, d: .04, v: v(.1) }); break;
+      case 'final': tone(ac, o, { type: 'sawtooth', f: 1200, f2: 600, t, d: .12, v: v(.1), lp: 3000 }); break;
+      case 'pop': tone(ac, o, { type: 'sawtooth', f: 2400, f2: 160, t, d: .22, v: v(.12), lp: 4000 }); break;
+      case 'yes': [0, 4, 7, 12, 16].forEach((n, i) => tone(ac, o, { type: 'sawtooth', f: mtof(72 + n), t: t + i * .05, d: i === 4 ? .5 : .06, v: v(.08), lp: 3500 })); noise(ac, o, { t, d: .6, v: v(.08), bp: 800, sweep: 6000, q: 3 }); break;
+      case 'no': tone(ac, o, { type: 'sawtooth', f: 180, f2: 60, t, d: .6, v: v(.18), lp: 900, lpQ: 8 }); tone(ac, o, { type: 'square', f: 90, t, d: .5, v: v(.06), lp: 400 }); break;
+      case 'intro': noise(ac, o, { t, d: 1.2, v: v(.14), bp: 300, sweep: 5000, q: 4, a: .6 }); tone(ac, o, { type: 'sine', f: 110, f2: 880, t, d: 1.1, v: v(.12), a: .5 }); break;
+      case 'outro': [0, 7, 12, 19, 24].forEach((n, i) => tone(ac, o, { type: 'sawtooth', f: mtof(60 + n), t: t + i * .12, d: i === 4 ? 1 : .14, v: v(.07), lp: 3000 })); noise(ac, o, { t: t + .5, d: 1.4, v: v(.08), bp: 6000, sweep: 400, q: 3 }); break;
     }
   } else if (pack === 'soft') {
     switch (k) {
