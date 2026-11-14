@@ -531,6 +531,7 @@ $('#btnExport').onclick = () => {
   dlg.showModal();
 };
 $('#expGo').onclick = async () => {
+  SGExport.unlock();   // 手機：在點擊當下先解鎖聲音，之後的即時錄影才會有音樂音效
   ctrl = new AbortController();
   $('#expGo').disabled = true; $('#expClose').textContent = '取消匯出';
   $$('#resCtl button').forEach(b => b.disabled = true);

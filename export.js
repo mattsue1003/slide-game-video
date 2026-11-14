@@ -33,13 +33,16 @@ async function exportVideo(p, opts, onProgress, signal) {
   if (!vcodec) return exportRealtime(p, tl, { w, h, fps, customBuf: opts.customBuf }, onProgress, signal);
 
   onProgress(0, '合成背景音樂與音效…');
-  const mix = await SGAudio.renderMix(p, tl, 48000, opts.customBuf);
+  // 手機瀏覽器（例如 iPhone Safari）常常能編碼畫面、卻不能編碼 AAC 聲音。
+  // 沒有 AAC 就改用即時錄影，避免匯出沒有聲音的影片。
   const ac = await pickAudioCodec();
+  if (!ac || ac.mux !== 'aac') return exportRealtime(p, tl, { w, h, fps, customBuf: opts.customBuf }, onProgress, signal);
+  const mix = await SGAudio.renderMix(p, tl, 48000, opts.customBuf);
 
   const muxer = new Mp4Muxer.Muxer({
     target: new Mp4Muxer.ArrayBufferTarget(),
     video: { codec: 'avc', width: w, height: h, frameRate: fps },
-    audio: ac ? { codec: ac.mux, numberOfChannels: 2, sampleRate: 48000 } : undefined,
+    audio: { codec: ac.mux, numberOfChannels: 2, sampleRate: 48000 },
     fastStart: 'in-memory',
     firstTimestampBehavior: 'offset',
   });
@@ -84,13 +87,21 @@ async function exportVideo(p, opts, onProgress, signal) {
   return new Blob([muxer.target.buffer], { type: 'video/mp4' });
 }
 
+let unlocked = null;
+/* 在使用者點擊「開始匯出」的當下呼叫，讓手機允許之後的聲音 */
+function unlock() {
+  try { unlocked = unlocked || new AudioContext({ sampleRate: 48000 }); unlocked.resume(); } catch (e) { unlocked = null; }
+}
+
 /* 備援：不支援 WebCodecs 的瀏覽器，用即時錄影（需要等影片長度的時間） */
 async function exportRealtime(p, tl, { w, h, fps, customBuf }, onProgress, signal) {
   onProgress(0, '此瀏覽器不支援快速編碼，改用即時錄影（請保持此分頁開啟）…');
   const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
   const mix = await SGAudio.renderMix(p, tl, 48000, customBuf);
-  const actx = new AudioContext({ sampleRate: 48000 });
+  // 用按下匯出時就解鎖的 AudioContext（手機要使用者點擊才允許出聲）
+  const actx = unlocked || new AudioContext({ sampleRate: 48000 }); unlocked = null;
+  try { await actx.resume(); } catch (e) { /* ignore */ }
   const dest = actx.createMediaStreamDestination();
   const stream = new MediaStream([...canvas.captureStream(fps).getVideoTracks(), ...dest.stream.getAudioTracks()]);
   const types = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
@@ -112,9 +123,9 @@ async function exportRealtime(p, tl, { w, h, fps, customBuf }, onProgress, signa
     };
     requestAnimationFrame(tick);
   }).finally(() => { try { src.stop(); } catch (e) {} if (rec.state !== 'inactive') rec.stop(); });
-  await done; actx.close();
+  await done; try { actx.close(); } catch (e) { /* ignore */ }
   return new Blob(chunks, { type: (mime || 'video/webm').split(';')[0] });
 }
 
-window.SGExport = { exportVideo };
+window.SGExport = { exportVideo, unlock };
 })();

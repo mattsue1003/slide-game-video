@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=LXGW+WenKai+TC:wght@400;700&family=Noto+Serif+TC:wght@700;900&family=Chiron+GoRound+TC:wght@500;700;900&family=Huninn&family=Iansui&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261114205012">
+<link rel="stylesheet" href="style.css?v=20261114215247">
 </head>
 <body>
 <header class="top">
@@ -197,18 +197,48 @@
 <input type="file" id="fileImgs" accept="image/*" multiple hidden>
 
 <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
-<script src="render.js?v=20261114205012"></script>
-<script src="audio.js?v=20261114205012"></script>
-<script src="export.js?v=20261114205012"></script>
-<script src="app.js?v=20261114205012"></script>
+<script src="render.js?v=20261114215247"></script>
+<script src="audio.js?v=20261114215247"></script>
+<script src="export.js?v=20261114215247"></script>
+<script src="app.js?v=20261114215247"></script>
 <script>
+/* 回報按鈕：縮成小圓圖示（圖示置中），並且可以拖曳到任何位置（位置記在這台裝置） */
 addEventListener('load',()=>{
+  const KEY='sgv-report-pos';
   const tryShrink=(n=0)=>{
     const host=document.querySelector('[data-oth-report]');
     if(!host||!host.shadowRoot){if(n<20)setTimeout(()=>tryShrink(n+1),300);return}
-    const s=document.createElement('style');
-    s.textContent='.fab{left:14px!important;right:auto!important;bottom:14px!important}.fab{width:34px!important;height:34px!important;min-width:0!important;padding:0!important;border-radius:50%!important;overflow:hidden!important;font-size:0!important;white-space:nowrap!important;transition:width .25s!important;opacity:.75}.fab:hover{width:auto!important;padding:0 14px!important;font-size:13px!important;border-radius:99px!important;opacity:1}';
-    host.shadowRoot.appendChild(s);
+    const root=host.shadowRoot, s=document.createElement('style');
+    s.textContent='.fab{left:var(--rx,14px)!important;top:var(--ry,auto)!important;right:auto!important;bottom:var(--rb,14px)!important;width:38px!important;height:38px!important;min-width:0!important;padding:0!important;gap:0!important;justify-content:center!important;border-radius:50%!important;overflow:hidden!important;font-size:0!important;white-space:nowrap!important;opacity:.8;touch-action:none;cursor:grab}'
+      +'.fab svg{width:18px!important;height:18px!important;flex:none;margin:0!important}'
+      +'.fab.dragging{cursor:grabbing;opacity:1;transition:none!important}'
+      +'@media (hover:hover){.fab:not(.dragging):hover{width:auto!important;padding:0 14px!important;gap:6px!important;font-size:13px!important;border-radius:99px!important;opacity:1}}';
+    root.appendChild(s);
+    const fab=root.querySelector('.fab'); if(!fab) return;
+    const place=(x,y)=>{
+      x=Math.max(4,Math.min(innerWidth-42,x)); y=Math.max(4,Math.min(innerHeight-42,y));
+      host.style.setProperty('--rx',x+'px'); host.style.setProperty('--ry',y+'px'); host.style.setProperty('--rb','auto');
+      return {x,y};
+    };
+    try{const p=JSON.parse(localStorage.getItem(KEY)||'null'); if(p) place(p.x*innerWidth,p.y*innerHeight);}catch(e){}
+    let drag=null, moved=false;
+    fab.addEventListener('pointerdown',e=>{
+      const r=fab.getBoundingClientRect(); drag={dx:e.clientX-r.left,dy:e.clientY-r.top,sx:e.clientX,sy:e.clientY}; moved=false;
+      fab.setPointerCapture(e.pointerId);
+    });
+    fab.addEventListener('pointermove',e=>{
+      if(!drag) return;
+      if(!moved&&Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)<6) return;
+      moved=true; fab.classList.add('dragging'); place(e.clientX-drag.dx,e.clientY-drag.dy);
+    });
+    const end=()=>{
+      if(drag&&moved){const r=fab.getBoundingClientRect(); try{localStorage.setItem(KEY,JSON.stringify({x:r.left/innerWidth,y:r.top/innerHeight}))}catch(e){}}
+      drag=null; fab.classList.remove('dragging');
+    };
+    fab.addEventListener('pointerup',end); fab.addEventListener('pointercancel',end);
+    // 拖曳結束時不要順便打開回報視窗
+    root.addEventListener('click',e=>{ if(moved&&e.target.closest&&e.target.closest('.fab')){e.stopImmediatePropagation();e.preventDefault();moved=false;} },true);
+    addEventListener('resize',()=>{const r=fab.getBoundingClientRect(); if(host.style.getPropertyValue('--ry')) place(r.left,r.top);});
   };tryShrink();
 });
 </script>
